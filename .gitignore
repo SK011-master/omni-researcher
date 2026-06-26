@@ -1,14 +1,24 @@
-﻿# Dependencies
-node_modules/
+﻿# ========================
+# 1. Python & Backend (FastAPI)
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
 venv/
 .venv/
-__pycache__/
-*.pyc
-
-# Environment variables & secrets
+env/
 .env
-.env.local
 
-# System files
+# ========================
+# 2. Node & Frontend (React)
+# ========================
+node_modules/
+dist/
+build/
+.npm/
+
+# ========================
+# 3. OS & System Files
+# ========================
 .DS_Store
 Thumbs.db
