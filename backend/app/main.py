@@ -24,38 +24,31 @@ def read_root():
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
-        # 1. Receive the initial prompt from the React frontend
-        data = await websocket.receive_text()
-        payload = json.loads(data)
-        task = payload.get("task", "")
+        while True: # <--- 1. ADD THIS INFINITE LOOP
+            # 2. Indent everything below this point by one tab
+            data = await websocket.receive_text()
+            payload = json.loads(data)
+            task = payload.get("task", "")
 
-        initial_state = {
-            "task": task,
-            "research_data": [],
-            "critic_feedback": "",
-            "revision_count": 0,
-            "final_report": "",
-            "current_agent": "system"
-        }
+            initial_state = {
+                "task": task,
+                "research_data": [],
+                "critic_feedback": "",
+                "revision_count": 0,
+                "final_report": "",
+                "current_agent": "system"
+            }
 
-        # 2. Run the LangGraph workflow asynchronously
-        # astream() yields events dynamically as each agent finishes its node
-        async for event in agent_app.astream(initial_state):
-            # 'event' is a dictionary containing the node name and its state updates
-            for node_name, state_update in event.items():
-                
-                # 3. Stream the update directly to the frontend
-                await websocket.send_json({
-                    "type": "update",
-                    "agent": node_name,
-                    "data": state_update
-                })
-                
-                # Add a tiny delay to ensure frontend animations have time to trigger smoothly
-                await asyncio.sleep(0.5) 
+            async for event in agent_app.astream(initial_state):
+                for node_name, state_update in event.items():
+                    await websocket.send_json({
+                        "type": "update",
+                        "agent": node_name,
+                        "data": state_update
+                    })
+                    await asyncio.sleep(0.5) 
 
-        # 4. Notify the frontend that the workflow is done
-        await websocket.send_json({"type": "complete", "message": "Workflow finished."})
+            await websocket.send_json({"type": "complete", "message": "Workflow finished."})
 
     except WebSocketDisconnect:
         print("Frontend client disconnected.")
