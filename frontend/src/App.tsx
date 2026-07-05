@@ -14,6 +14,7 @@ export default function App() {
     streamedContent,
     activeQuery,
     error,
+    isWebSearchActive,
     startResearch,
     cancelResearch,
     resetSession,
@@ -27,6 +28,7 @@ export default function App() {
       streamedContent={streamedContent}
       activeQuery={activeQuery}
       error={error}
+      isWebSearchActive={isWebSearchActive}
       startResearch={startResearch}
       cancelResearch={cancelResearch}
       resetSession={resetSession}

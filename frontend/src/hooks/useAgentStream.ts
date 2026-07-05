@@ -11,6 +11,8 @@ const INITIAL_NODES: Record<AgentRole, AgentNodeState> = {
     status: 'idle',
     progress: 0,
     output: '',
+    x: 150,
+    y: 100,
   },
   critic: {
     id: 'critic',
@@ -20,6 +22,8 @@ const INITIAL_NODES: Record<AgentRole, AgentNodeState> = {
     status: 'idle',
     progress: 0,
     output: '',
+    x: 500,
+    y: 100,
   },
   synthesizer: {
     id: 'synthesizer',
@@ -29,16 +33,28 @@ const INITIAL_NODES: Record<AgentRole, AgentNodeState> = {
     status: 'idle',
     progress: 0,
     output: '',
+    x: 850,
+    y: 100,
   },
 };
 
 export const useAgentStream = () => {
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('offline');
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [nodes, setNodes] = useState<Record<AgentRole, AgentNodeState>>(INITIAL_NODES);
   const [currentNode, setCurrentNode] = useState<AgentRole | null>(null);
   const [streamedContent, setStreamedContent] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isWebSearchActive, setIsWebSearchActive] = useState(false);
+
+  // Sync isWebSearchActive with researcher status
+  useEffect(() => {
+    if (nodes.researcher.status === 'working') {
+      setIsWebSearchActive(true);
+    } else {
+      setIsWebSearchActive(false);
+    }
+  }, [nodes.researcher.status]);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -49,7 +65,7 @@ export const useAgentStream = () => {
       wsRef.current = new WebSocket('ws://localhost:8000/ws/chat');
 
       wsRef.current.onopen = () => setConnectionStatus('connected');
-      wsRef.current.onclose = () => setConnectionStatus('offline');
+      wsRef.current.onclose = () => setConnectionStatus('disconnected');
     }
   }, []);
 
@@ -79,48 +95,69 @@ export const useAgentStream = () => {
     }
 
     // Listen for LangGraph responses
-    wsRef.current.onmessage = (event) => {
+    wsRef.current.onmessage = async (event) => {
       const response = JSON.parse(event.data);
 
       if (response.type === 'update') {
+
+        // Read the custom search state sent from your FastAPI loop
+        if (response.data && typeof response.data.is_searching !== 'undefined') {
+          setIsWebSearchActive(response.data.is_searching);
+        }
+
         const agentName = response.agent.replace('_node', '') as AgentRole;
+        
+        if (agentName === 'critic') {
+          await new Promise(r => setTimeout(r, 1500));
+        }
+
         setCurrentNode(agentName);
         
         setNodes(prev => {
           const newNodes = { ...prev };
           
-          // 1. When Researcher finishes, save its data and prep Critic
           if (agentName === 'researcher') {
-            newNodes.researcher.status = 'completed';
+            newNodes.researcher.status = 'working';
+            newNodes.critic.status = 'idle';
+            newNodes.synthesizer.status = 'idle';
+            
             const rData = response.data.research_data;
             if (rData) {
               newNodes.researcher.output = Array.isArray(rData) ? rData.join('\n\n') : String(rData);
             }
-            newNodes.critic.status = 'working';
-            newNodes.critic.title = 'Reviewing findings...';
           }
           
-          // 2. When Critic finishes, save its feedback and prep Synthesizer
-          if (agentName === 'critic') {
-             newNodes.critic.status = 'completed';
+          else if (agentName === 'critic') {
+             newNodes.researcher.status = 'completed';
+             newNodes.critic.status = 'working';
+             newNodes.synthesizer.status = 'idle';
+             
              if (response.data.critic_feedback) {
                  newNodes.critic.output = response.data.critic_feedback;
              }
-             newNodes.synthesizer.status = 'working';
-             newNodes.synthesizer.title = 'Formatting final report...';
           }
 
-          // 3. When Synthesizer finishes, save final report
-          if (agentName === 'synthesizer') {
-             newNodes.synthesizer.status = 'completed';
+          else if (agentName === 'synthesizer') {
+             newNodes.researcher.status = 'completed';
+             newNodes.critic.status = 'completed';
+             newNodes.synthesizer.status = 'working';
+             
              if (response.data.final_report) {
                  newNodes.synthesizer.output = response.data.final_report;
              }
           }
+          
           return newNodes;
         });
       } 
       else if (response.type === 'complete') {
+        setNodes(prev => {
+          const newNodes = { ...prev };
+          if (newNodes.synthesizer.status === 'working') {
+             newNodes.synthesizer.status = 'completed';
+          }
+          return newNodes;
+        });
         setCurrentNode(null); // Triggers final UI state and stops animations
       } 
       else if (response.type === 'error') {
@@ -132,7 +169,7 @@ export const useAgentStream = () => {
 
   const cancelResearch = () => {
     if (wsRef.current) wsRef.current.close();
-    setConnectionStatus('offline');
+    setConnectionStatus('disconnected');
     setCurrentNode(null);
   };
 
@@ -150,6 +187,7 @@ export const useAgentStream = () => {
     streamedContent,
     activeQuery,
     error,
+    isWebSearchActive,
     startResearch,
     cancelResearch,
     resetSession,

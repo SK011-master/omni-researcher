@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Search, ShieldAlert, FileText, CheckCircle2, RotateCw, AlertTriangle, Eye } from "lucide-react";
 import { AgentNodeState, AgentRole } from "../types";
@@ -41,6 +42,25 @@ const ROLE_COLORS = {
 export default function AgentNode({ node, isActive, onViewOutput }: AgentNodeProps) {
   const Icon = ROLE_ICONS[node.role];
   const theme = ROLE_COLORS[node.role];
+
+  const [localProgress, setLocalProgress] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (node.status === "working") {
+      setLocalProgress(0);
+      interval = setInterval(() => {
+        setLocalProgress((prev) => (prev >= 90 ? 90 : prev + (Math.random() * 2 + 1)));
+      }, 500);
+    } else if (node.status === "completed") {
+      setLocalProgress(100);
+    } else {
+      setLocalProgress(0);
+    }
+
+    return () => clearInterval(interval);
+  }, [node.status]);
 
   return (
     <motion.div
@@ -119,16 +139,16 @@ export default function AgentNode({ node, isActive, onViewOutput }: AgentNodePro
         </div>
 
         {/* Progress Bar */}
-        {(node.status === "working" || node.progress > 0) && (
+        {(node.status === "working" || localProgress > 0) && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
               <span>Task Progress</span>
-              <span className="font-semibold text-zinc-400">{Math.round(node.progress)}%</span>
+              <span className="font-semibold text-zinc-400">{Math.round(localProgress)}%</span>
             </div>
             <div className="h-1 w-full overflow-hidden rounded-full bg-zinc-800">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${node.progress}%` }}
+                animate={{ width: `${localProgress}%` }}
                 transition={{ duration: 0.4, ease: "easeOut" }}
                 className={`h-full bg-gradient-to-r ${
                   node.role === "researcher" 

@@ -36,15 +36,36 @@ async def websocket_endpoint(websocket: WebSocket):
                 "critic_feedback": "",
                 "revision_count": 0,
                 "final_report": "",
-                "current_agent": "system"
+                "current_agent": "system",
+                "is_searching": False
             }
 
             async for event in agent_app.astream(initial_state):
                 for node_name, state_update in event.items():
+                    # Clean up node name (e.g., "researcher_node" -> "researcher")
+                    clean_name = node_name.replace('_node', '')
+                    
+                    # If the researcher node just fired, we can optimistically trigger the search stream 
+                    # or read it straight out of the node's returned dictionary variables.
+                    is_searching = state_update.get("is_searching", False)
+                    
+                    # If researcher node is starting up, send a preliminary "searching" pulse to the UI
+                    if clean_name == "researcher":
+                        await websocket.send_json({
+                            "type": "update",
+                            "agent": "researcher_node",
+                            "data": {
+                                **state_update,
+                                "is_searching": True # Turn on the radar icon!
+                            }
+                        })
+                        await asyncio.sleep(1.2) # Let the radar icon pulse cinematically
+
+                    # Send the final node updates to the frontend client
                     await websocket.send_json({
                         "type": "update",
                         "agent": node_name,
-                        "data": state_update
+                        "data": state_update # Turns off is_searching once the node finishes
                     })
                     await asyncio.sleep(0.5) 
 

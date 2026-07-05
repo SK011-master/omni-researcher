@@ -18,3 +18,4 @@ class AgentState(TypedDict):
     
     # Internal log to keep track of which agent is currently active
     current_agent: str
+    is_searching: bool

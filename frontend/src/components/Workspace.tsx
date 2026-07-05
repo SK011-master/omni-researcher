@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Move, Layers, RefreshCw, Compass, Clock, CheckSquare, ZoomIn, ZoomOut } from "lucide-react";
 import { AgentRole, AgentNodeState, ConnectionStatus } from "../types";
 import AgentNode from "./AgentNode";
+import ToolNode from "./ToolNode";
 import MarkdownViewer from "./MarkdownViewer";
 import CommandTerminal from "./CommandTerminal";
 import AnimatedEdge from "./AnimatedEdge";
@@ -14,6 +15,7 @@ interface WorkspaceProps {
   streamedContent: string;
   activeQuery: string;
   error: string | null;
+  isWebSearchActive: boolean;
   startResearch: (query: string) => void;
   cancelResearch: () => void;
   resetSession: () => void;
@@ -26,6 +28,7 @@ export default function Workspace({
   streamedContent,
   activeQuery,
   error,
+  isWebSearchActive,
   startResearch,
   cancelResearch,
   resetSession,
@@ -42,6 +45,45 @@ export default function Workspace({
   });
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<"graph" | "output">("graph");
+
+  const [nodeHeights, setNodeHeights] = useState({
+    researcher: 220,
+    critic: 220,
+    synthesizer: 220,
+  });
+
+  useEffect(() => {
+    const observer = new ResizeObserver((entries) => {
+      setNodeHeights((prev) => {
+        let hasChanges = false;
+        const next = { ...prev };
+        for (const entry of entries) {
+          const id = entry.target.id;
+          const height = (entry.target as HTMLElement).offsetHeight;
+          if (id === "node-researcher" && next.researcher !== height) {
+            next.researcher = height;
+            hasChanges = true;
+          } else if (id === "node-critic" && next.critic !== height) {
+            next.critic = height;
+            hasChanges = true;
+          } else if (id === "node-synthesizer" && next.synthesizer !== height) {
+            next.synthesizer = height;
+            hasChanges = true;
+          }
+        }
+        return hasChanges ? next : prev;
+      });
+    });
+
+    const r = document.getElementById("node-researcher");
+    const c = document.getElementById("node-critic");
+    const s = document.getElementById("node-synthesizer");
+    if (r) observer.observe(r);
+    if (c) observer.observe(c);
+    if (s) observer.observe(s);
+
+    return () => observer.disconnect();
+  }, []);
 
   // Track active and previous agent nodes for state mapping flow animation
   const [activeAgent, setActiveAgent] = useState<string | null>(null);
@@ -109,20 +151,10 @@ export default function Workspace({
               x: (width / 2) - (550 * computedZoom),
               y: 20,
             });
-            setNodePositions({
-              researcher: { x: 422, y: 20 },
-              critic: { x: 422, y: 290 },
-              synthesizer: { x: 422, y: 560 },
-            });
           } else {
             setCanvasOffset({
               x: (width / 2) - (508 * computedZoom),
               y: Math.max(20, (containerHeight / 2) - (180 * computedZoom)),
-            });
-            setNodePositions({
-              researcher: { x: 50, y: 70 },
-              critic: { x: 380, y: 70 },
-              synthesizer: { x: 710, y: 70 },
             });
           }
         }
@@ -135,37 +167,7 @@ export default function Workspace({
     };
   }, []);
 
-  // Smooth custom pointer-drag handling for nodes (supports mobile touch, tablets, and PC mouse)
-  const startDrag = (e: React.PointerEvent, role: AgentRole) => {
-    if (e.button !== 0) return; // Only drag with left click/primary contact
-    e.stopPropagation(); // Stop background panning event from bubbling up
-    
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const initialPos = nodePositions[role];
 
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      // Divide by zoom factor to keep drag speed matching pointer speed at any scale
-      const dx = (moveEvent.clientX - startX) / zoom;
-      const dy = (moveEvent.clientY - startY) / zoom;
-
-      setNodePositions((prev) => ({
-        ...prev,
-        [role]: {
-          x: initialPos.x + dx,
-          y: initialPos.y + dy,
-        },
-      }));
-    };
-
-    const handlePointerUp = () => {
-      document.removeEventListener("pointermove", handlePointerMove);
-      document.removeEventListener("pointerup", handlePointerUp);
-    };
-
-    document.addEventListener("pointermove", handlePointerMove);
-    document.addEventListener("pointerup", handlePointerUp);
-  };
 
   // Smooth custom pointer-drag handling for canvas panning (panning infinite background)
   const startPan = (e: React.PointerEvent) => {
@@ -365,12 +367,12 @@ export default function Workspace({
                   </filter>
                 </defs>
 
-                {isVerticalLayout ? (
+                 {isVerticalLayout ? (
                   <>
                     {/* Forward Edge 1: Researcher -> Critic (Vertical) */}
                     <AnimatedEdge
                       id="edge-researcher-critic"
-                      pathD={`M ${nodePositions.researcher.x + 128} ${nodePositions.researcher.y + 200} C ${nodePositions.researcher.x + 128} ${(nodePositions.researcher.y + 200 + nodePositions.critic.y) / 2}, ${nodePositions.critic.x + 128} ${(nodePositions.researcher.y + 200 + nodePositions.critic.y) / 2}, ${nodePositions.critic.x + 128} ${nodePositions.critic.y}`}
+                      pathD={`M ${nodePositions.researcher.x + 128} ${nodePositions.researcher.y + nodeHeights.researcher} L ${nodePositions.critic.x + 128} ${nodePositions.critic.y}`}
                       isActive={previousAgent === "researcher_node" && activeAgent === "critic_node"}
                       color="#3b82f6"
                       flowDirection="forward"
@@ -379,7 +381,7 @@ export default function Workspace({
                     {/* Forward Edge 2: Critic -> Synthesizer (Vertical) */}
                     <AnimatedEdge
                       id="edge-critic-synthesizer"
-                      pathD={`M ${nodePositions.critic.x + 128} ${nodePositions.critic.y + 200} C ${nodePositions.critic.x + 128} ${(nodePositions.critic.y + 200 + nodePositions.synthesizer.y) / 2}, ${nodePositions.synthesizer.x + 128} ${(nodePositions.critic.y + 200 + nodePositions.synthesizer.y) / 2}, ${nodePositions.synthesizer.x + 128} ${nodePositions.synthesizer.y}`}
+                      pathD={`M ${nodePositions.critic.x + 128} ${nodePositions.critic.y + nodeHeights.critic} L ${nodePositions.synthesizer.x + 128} ${nodePositions.synthesizer.y}`}
                       isActive={previousAgent === "critic_node" && activeAgent === "synthesizer_node"}
                       color="#3b82f6"
                       flowDirection="forward"
@@ -388,10 +390,10 @@ export default function Workspace({
                     {/* Cyclic Backward Edge: Critic -> Researcher (Vertical Loop Left) */}
                     <AnimatedEdge
                       id="edge-critic-researcher-cyclic"
-                      pathD={`M ${nodePositions.critic.x} ${nodePositions.critic.y + 90} C ${nodePositions.critic.x - 160} ${nodePositions.critic.y + 90}, ${nodePositions.researcher.x - 160} ${nodePositions.researcher.y + 90}, ${nodePositions.researcher.x} ${nodePositions.researcher.y + 90}`}
+                      pathD={`M ${nodePositions.critic.x} ${nodePositions.critic.y + 110} H ${nodePositions.critic.x - 80} V ${nodePositions.researcher.y + 110} H ${nodePositions.researcher.x}`}
                       isActive={previousAgent === "critic_node" && activeAgent === "researcher_node"}
                       color="#ef4444"
-                      flowDirection="backward"
+                      flowDirection="forward"
                     />
                   </>
                 ) : (
@@ -399,7 +401,7 @@ export default function Workspace({
                     {/* Forward Edge 1: Researcher -> Critic */}
                     <AnimatedEdge
                       id="edge-researcher-critic"
-                      pathD={`M ${nodePositions.researcher.x + 256} ${nodePositions.researcher.y + 110} C ${(nodePositions.researcher.x + 256 + nodePositions.critic.x) / 2} ${nodePositions.researcher.y + 110}, ${(nodePositions.researcher.x + 256 + nodePositions.critic.x) / 2} ${nodePositions.critic.y + 110}, ${nodePositions.critic.x} ${nodePositions.critic.y + 110}`}
+                      pathD={`M ${nodePositions.researcher.x + 256} ${nodePositions.researcher.y + 110} L ${nodePositions.critic.x} ${nodePositions.critic.y + 110}`}
                       isActive={previousAgent === "researcher_node" && activeAgent === "critic_node"}
                       color="#3b82f6"
                       flowDirection="forward"
@@ -408,7 +410,7 @@ export default function Workspace({
                     {/* Forward Edge 2: Critic -> Synthesizer */}
                     <AnimatedEdge
                       id="edge-critic-synthesizer"
-                      pathD={`M ${nodePositions.critic.x + 256} ${nodePositions.critic.y + 110} C ${(nodePositions.critic.x + 256 + nodePositions.synthesizer.x) / 2} ${nodePositions.critic.y + 110}, ${(nodePositions.critic.x + 256 + nodePositions.synthesizer.x) / 2} ${nodePositions.synthesizer.y + 110}, ${nodePositions.synthesizer.x} ${nodePositions.synthesizer.y + 110}`}
+                      pathD={`M ${nodePositions.critic.x + 256} ${nodePositions.critic.y + 110} L ${nodePositions.synthesizer.x} ${nodePositions.synthesizer.y + 110}`}
                       isActive={previousAgent === "critic_node" && activeAgent === "synthesizer_node"}
                       color="#3b82f6"
                       flowDirection="forward"
@@ -417,19 +419,38 @@ export default function Workspace({
                     {/* Cyclic Backward Edge: Critic -> Researcher */}
                     <AnimatedEdge
                       id="edge-critic-researcher-cyclic"
-                      pathD={`M ${nodePositions.critic.x + 128} ${nodePositions.critic.y + 220} Q ${(nodePositions.critic.x + nodePositions.researcher.x) / 2 + 128} ${Math.max(nodePositions.critic.y, nodePositions.researcher.y) + 320} ${nodePositions.researcher.x + 128} ${nodePositions.researcher.y + 220}`}
+                      pathD={`M ${nodePositions.critic.x + 128} ${nodePositions.critic.y + nodeHeights.critic} V ${Math.max(nodePositions.critic.y + nodeHeights.critic, nodePositions.researcher.y + nodeHeights.researcher) + 40} H ${nodePositions.researcher.x + 128} V ${nodePositions.researcher.y + nodeHeights.researcher}`}
                       isActive={previousAgent === "critic_node" && activeAgent === "researcher_node"}
                       color="#ef4444"
-                      flowDirection="backward"
+                      flowDirection="forward"
                     />
                   </>
                 )}
+
+                {/* Satellite Tool Edge: Google Search Tool -> Deep Researcher */}
+                <AnimatedEdge
+                  id="edge-tool-researcher"
+                  pathD={`M ${nodePositions.researcher.x + 128} ${nodePositions.researcher.y - 150 + 104} L ${nodePositions.researcher.x + 128} ${nodePositions.researcher.y}`}
+                  isActive={isWebSearchActive}
+                  color="#0ea5e9"
+                  flowDirection="forward"
+                />
               </svg>
 
-              {/* Node 1: Researcher */}
+              {/* Tool Node: Google Search Tool */}
               <div
-                onPointerDown={(e) => startDrag(e, "researcher")}
-                className="absolute z-10 cursor-grab active:cursor-grabbing select-none"
+                className="absolute z-10 select-none"
+                style={{ 
+                  left: 0, 
+                  top: 0, 
+                  transform: `translate3d(${nodePositions.researcher.x + 16}px, ${nodePositions.researcher.y - 150}px, 0)` 
+                }}
+              >
+                <ToolNode isActive={isWebSearchActive} />
+              </div>
+
+              <div
+                className="absolute z-10 select-none"
                 style={{ 
                   left: 0, 
                   top: 0, 
@@ -443,10 +464,8 @@ export default function Workspace({
                 />
               </div>
 
-              {/* Node 2: Critic */}
               <div
-                onPointerDown={(e) => startDrag(e, "critic")}
-                className="absolute z-10 cursor-grab active:cursor-grabbing select-none"
+                className="absolute z-10 select-none"
                 style={{ 
                   left: 0, 
                   top: 0, 
@@ -460,10 +479,8 @@ export default function Workspace({
                 />
               </div>
 
-              {/* Node 3: Synthesizer */}
               <div
-                onPointerDown={(e) => startDrag(e, "synthesizer")}
-                className="absolute z-10 cursor-grab active:cursor-grabbing select-none"
+                className="absolute z-10 select-none"
                 style={{ 
                   left: 0, 
                   top: 0, 
@@ -484,7 +501,7 @@ export default function Workspace({
           <div className="absolute bottom-4 left-4 right-4 sm:left-6 sm:right-auto flex flex-col sm:flex-row items-center gap-2 sm:space-x-4 bg-zinc-950/85 border border-zinc-900/80 px-3 py-2 sm:px-3.5 rounded-xl backdrop-blur-md z-20 shadow-lg">
             <div className="flex items-center space-x-1.5 font-mono text-[8px] sm:text-[9px] text-zinc-400 text-center sm:text-left">
               <Move className="h-3.5 w-3.5 text-zinc-500 shrink-0 animate-pulse" />
-              <span>DRAG BACKGROUND TO PAN | DRAG NODES</span>
+              <span>DRAG BACKGROUND TO PAN</span>
             </div>
             <span className="hidden sm:inline text-zinc-800">|</span>
             <div className="flex items-center space-x-2 font-mono">
