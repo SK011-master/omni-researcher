@@ -15,6 +15,9 @@ export default function App() {
     activeQuery,
     error,
     isWebSearchActive,
+    dbStatus,
+    savedSessions,
+    fetchSavedSessions,
     startResearch,
     cancelResearch,
     resetSession,
@@ -29,6 +32,9 @@ export default function App() {
       activeQuery={activeQuery}
       error={error}
       isWebSearchActive={isWebSearchActive}
+      dbStatus={dbStatus}
+      savedSessions={savedSessions}
+      fetchSavedSessions={fetchSavedSessions}
       startResearch={startResearch}
       cancelResearch={cancelResearch}
       resetSession={resetSession}

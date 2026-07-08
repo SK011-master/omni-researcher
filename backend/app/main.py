@@ -4,6 +4,14 @@ import asyncio
 import json
 from app.agents.graph import agent_app
 
+# --- ADD DATABASE IMPORTS ---
+from app.database import engine, Base, SessionLocal
+from app.models import ResearchSession
+from sqlalchemy.orm import Session
+
+
+Base.metadata.create_all(bind=engine)
+
 # Initialize the API
 app = FastAPI(title="Omni-Researcher API")
 
@@ -16,6 +24,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- REST ENDPOINT: Fetch History for the Frontend Drawer ---
+@app.get("/api/sessions")
+def get_sessions():
+    db = SessionLocal()
+    try:
+        # Fetch all sessions ordered by newest first
+        sessions = db.query(ResearchSession).order_by(ResearchSession.created_at.desc()).all()
+        return sessions
+    finally:
+        db.close()
+
 @app.get("/")
 def read_root():
     return {"status": "Omni-Researcher Core is Online"}
@@ -23,12 +42,20 @@ def read_root():
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    db: Session = SessionLocal() # Open a fresh DB transaction session
+    
     try:
-        while True: # <--- 1. ADD THIS INFINITE LOOP
-            # 2. Indent everything below this point by one tab
+        while True:
             data = await websocket.receive_text()
             payload = json.loads(data)
             task = payload.get("task", "")
+
+            # 1. Notify frontend that the DB pipeline is ready
+            await websocket.send_json({
+                "type": "db_status",
+                "status": "idle",
+                "message": "Database pipeline active."
+            })
 
             initial_state = {
                 "task": task,
@@ -39,35 +66,67 @@ async def websocket_endpoint(websocket: WebSocket):
                 "current_agent": "system",
                 "is_searching": False
             }
+            
+            # Keep a local tracker of the state to save to the database later
+            final_state = initial_state.copy()
 
             async for event in agent_app.astream(initial_state):
                 for node_name, state_update in event.items():
-                    # Clean up node name (e.g., "researcher_node" -> "researcher")
-                    clean_name = node_name.replace('_node', '')
+                    final_state.update(state_update) # Update our tracker
                     
-                    # If the researcher node just fired, we can optimistically trigger the search stream 
-                    # or read it straight out of the node's returned dictionary variables.
+                    clean_name = node_name.replace('_node', '')
                     is_searching = state_update.get("is_searching", False)
                     
-                    # If researcher node is starting up, send a preliminary "searching" pulse to the UI
                     if clean_name == "researcher":
                         await websocket.send_json({
                             "type": "update",
                             "agent": "researcher_node",
                             "data": {
                                 **state_update,
-                                "is_searching": True # Turn on the radar icon!
+                                "is_searching": True 
                             }
                         })
-                        await asyncio.sleep(1.2) # Let the radar icon pulse cinematically
+                        await asyncio.sleep(1.2)
 
-                    # Send the final node updates to the frontend client
                     await websocket.send_json({
                         "type": "update",
                         "agent": node_name,
-                        "data": state_update # Turns off is_searching once the node finishes
+                        "data": state_update 
                     })
                     await asyncio.sleep(0.5) 
+
+            # 2. GRAPH IS COMPLETE -> Save everything to Supabase automatically!
+            await websocket.send_json({
+                "type": "db_status",
+                "status": "saving",
+                "message": "Writing final synthesis to Supabase..."
+            })
+            await asyncio.sleep(1.0) # Cinematic pause for visual effect
+
+            try:
+                new_session = ResearchSession(
+                    task=task,
+                    research_data="|||".join(final_state.get("research_data", [])),
+                    final_report=final_state.get("final_report", "")
+                )
+                db.add(new_session)
+                db.commit()
+                db.refresh(new_session)
+
+                # 3. Notify frontend of successful persistence
+                await websocket.send_json({
+                    "type": "db_status",
+                    "status": "saved",
+                    "message": f"Session secured safely in cloud."
+                })
+            except Exception as db_err:
+                db.rollback()
+                print(f"Database Save Error: {db_err}")
+                await websocket.send_json({
+                    "type": "db_status",
+                    "status": "error",
+                    "message": "Failed to save session to database."
+                })
 
             await websocket.send_json({"type": "complete", "message": "Workflow finished."})
 
@@ -75,3 +134,5 @@ async def websocket_endpoint(websocket: WebSocket):
         print("Frontend client disconnected.")
     except Exception as e:
         await websocket.send_json({"type": "error", "message": str(e)})
+    finally:
+        db.close() # Always close the connection pipeline

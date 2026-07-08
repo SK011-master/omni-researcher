@@ -4,6 +4,7 @@ import { Move, Layers, RefreshCw, Compass, Clock, CheckSquare, ZoomIn, ZoomOut }
 import { AgentRole, AgentNodeState, ConnectionStatus } from "../types";
 import AgentNode from "./AgentNode";
 import ToolNode from "./ToolNode";
+import DatabaseNode, { DBStatus } from "./DatabaseNode";
 import MarkdownViewer from "./MarkdownViewer";
 import CommandTerminal from "./CommandTerminal";
 import AnimatedEdge from "./AnimatedEdge";
@@ -16,6 +17,9 @@ interface WorkspaceProps {
   activeQuery: string;
   error: string | null;
   isWebSearchActive: boolean;
+  dbStatus: DBStatus;
+  savedSessions: any[];
+  fetchSavedSessions: () => void;
   startResearch: (query: string) => void;
   cancelResearch: () => void;
   resetSession: () => void;
@@ -29,12 +33,16 @@ export default function Workspace({
   activeQuery,
   error,
   isWebSearchActive,
+  dbStatus,
+  savedSessions,
+  fetchSavedSessions,
   startResearch,
   cancelResearch,
   resetSession,
 }: WorkspaceProps) {
   // Toggle between automatic streaming tracking or manual inspection
-  const [selectedRole, setSelectedRole] = useState<AgentRole | "final">("final");
+  const [selectedRole, setSelectedRole] = useState<AgentRole | "final" | "history">("final");
+  const [selectedHistorySession, setSelectedHistorySession] = useState<any | null>(null);
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
   const [isResetting, setIsResetting] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -45,7 +53,7 @@ export default function Workspace({
   });
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<"graph" | "output">("graph");
-
+ 
   const [nodeHeights, setNodeHeights] = useState({
     researcher: 220,
     critic: 220,
@@ -241,7 +249,10 @@ export default function Workspace({
   let displayedMarkdown = "";
   let displayedTitle = "Report Output";
   
-  if (selectedRole === "final") {
+  if (selectedRole === "history") {
+    displayedMarkdown = selectedHistorySession?.final_report || "";
+    displayedTitle = selectedHistorySession ? `History: ${selectedHistorySession.task}` : "Research History";
+  } else if (selectedRole === "final") {
     displayedMarkdown = nodes.synthesizer.output || nodes.critic.output || nodes.researcher.output || "";
     displayedTitle = nodes.synthesizer.output ? "Final Synthesized Report" : "Consolidated Output";
   } else {
@@ -351,7 +362,7 @@ export default function Workspace({
             }}
           >
             {/* Draggable Area - Size is large enough to feel infinite */}
-            <div className={`relative w-[1100px] ${isVerticalLayout ? "h-[850px]" : "h-[500px]"}`}>
+            <div className={`relative ${isVerticalLayout ? "w-[1100px] h-[850px]" : "w-[1350px] h-[500px]"}`}>
               
               {/* SVG Connector Wires with pulsating glowing animations */}
               <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
@@ -435,6 +446,15 @@ export default function Workspace({
                   color="#0ea5e9"
                   flowDirection="forward"
                 />
+
+                {/* Database Edge: Synthesizer -> PostgreSQL Database */}
+                <AnimatedEdge
+                  id="edge-synthesizer-database"
+                  pathD={`M ${nodePositions.synthesizer.x + 256} ${nodePositions.synthesizer.y + 110} L ${nodePositions.synthesizer.x + 350} ${nodePositions.synthesizer.y + 110}`}
+                  isActive={dbStatus === "saving"}
+                  color="#10b981"
+                  flowDirection="forward"
+                />
               </svg>
 
               {/* Tool Node: Google Search Tool */}
@@ -447,6 +467,18 @@ export default function Workspace({
                 }}
               >
                 <ToolNode isActive={isWebSearchActive} />
+              </div>
+
+              {/* Database Node: PostgreSQL Persistent Storage */}
+              <div
+                className="absolute z-10 select-none"
+                style={{ 
+                  left: 0, 
+                  top: 0, 
+                  transform: `translate3d(${nodePositions.synthesizer.x + 350}px, ${nodePositions.synthesizer.y + 55}px, 0)` 
+                }}
+              >
+                <DatabaseNode dbStatus={dbStatus} />
               </div>
 
               <div
@@ -541,46 +573,155 @@ export default function Workspace({
         >
           
           {/* Drawer tabs for preview selection */}
-          <div className="flex border-b border-zinc-900 px-4 py-2 bg-zinc-950 shrink-0 gap-1">
+          <div className="flex border-b border-zinc-900 px-4 py-2 bg-zinc-950 shrink-0 gap-1 overflow-x-auto select-none no-scrollbar">
             <button
               onClick={() => setSelectedRole("final")}
-              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition ${
+              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[90px] ${
                 selectedRole === "final"
                   ? "bg-zinc-900 text-blue-400 border border-zinc-800"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              Synthesis Output
+              Synthesis
             </button>
             <button
               onClick={() => setSelectedRole("researcher")}
-              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition ${
+              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[90px] ${
                 selectedRole === "researcher"
                   ? "bg-zinc-900 text-blue-400 border border-zinc-800"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              Researcher Notes
+              Researcher
             </button>
             <button
               onClick={() => setSelectedRole("critic")}
-              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition ${
+              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[90px] ${
                 selectedRole === "critic"
                   ? "bg-zinc-900 text-blue-400 border border-zinc-800"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              Peer Critique
+              Critique
+            </button>
+            <button
+              onClick={() => {
+                setSelectedRole("history");
+                setSelectedHistorySession(null);
+              }}
+              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[110px] ${
+                selectedRole === "history"
+                  ? "bg-zinc-900 text-blue-400 border border-zinc-800"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              History
             </button>
           </div>
 
-          {/* Markdown Content Block */}
-          <div className="flex-1 p-4 overflow-hidden">
-            <MarkdownViewer
-              content={displayedMarkdown}
-              isStreaming={isProcessing && selectedRole === currentNode}
-              agentName={displayedTitle}
-            />
+          {/* Markdown / History Content Block */}
+          <div className="flex-1 p-4 overflow-hidden flex flex-col">
+            {selectedRole === "history" ? (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {selectedHistorySession ? (
+                  /* B. Detail Inspection View */
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <div className="mb-4 shrink-0">
+                      <button
+                        onClick={() => setSelectedHistorySession(null)}
+                        className="flex items-center space-x-2 text-xs font-mono font-bold uppercase tracking-wider text-blue-400 hover:text-blue-300 transition px-3 py-1.5 bg-zinc-900 rounded-lg border border-zinc-800 hover:border-zinc-700"
+                      >
+                        <span>← Back to Sessions</span>
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-auto pr-1">
+                      <MarkdownViewer
+                        content={selectedHistorySession.final_report}
+                        isStreaming={false}
+                        agentName={`History Session: ${selectedHistorySession.task}`}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  /* A. List View (Default) */
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b border-zinc-900 shrink-0">
+                      <h3 className="font-mono text-xs font-bold text-zinc-400 tracking-wider uppercase">
+                        Saved Research Logs ({savedSessions.length})
+                      </h3>
+                      <button
+                        onClick={fetchSavedSessions}
+                        className="p-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition"
+                        title="Reload History"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                      </button>
+                    </div>
+                    
+                    {savedSessions.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-zinc-500 bg-zinc-900/10 rounded-xl border border-dashed border-zinc-900">
+                        <Clock className="h-8 w-8 text-zinc-600 mb-2 animate-pulse" />
+                        <p className="font-mono text-[10px] uppercase tracking-wider font-bold text-zinc-400">No logs found</p>
+                        <p className="text-xs text-zinc-600 mt-1 max-w-xs">
+                          Complete a deep research session to automatically persist reports in PostgreSQL database storage.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 pb-4">
+                        {savedSessions.map((session) => {
+                          const formattedDate = new Date(session.created_at).toLocaleString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          });
+                          
+                          return (
+                            <motion.div
+                              key={session.id}
+                              whileHover={{ y: -2 }}
+                              onClick={() => setSelectedHistorySession(session)}
+                              className="group relative cursor-pointer p-4 rounded-xl bg-zinc-950 border border-zinc-900 hover:border-zinc-800 hover:shadow-[0_0_15px_rgba(59,130,246,0.15)] transition-all duration-300"
+                            >
+                              {/* Background ambient gradient glow on hover */}
+                              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/10 via-teal-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                              
+                              <div className="relative z-10 flex flex-col space-y-2">
+                                <div className="flex items-center justify-between text-[9px] font-mono font-bold tracking-wider">
+                                  <span className="text-blue-400 uppercase bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/10">
+                                    {session.id}
+                                  </span>
+                                  <span className="text-zinc-500">
+                                    {formattedDate}
+                                  </span>
+                                </div>
+                                
+                                <p className="text-xs font-medium text-zinc-300 line-clamp-2 leading-relaxed group-hover:text-white transition-colors">
+                                  {session.task}
+                                </p>
+                                
+                                <div className="flex items-center justify-end pt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[9px] font-mono font-bold text-blue-400 uppercase tracking-widest space-x-1">
+                                  <span>Inspect dossier</span>
+                                  <span>→</span>
+                                </div>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Original Markdown Content Panel */
+              <MarkdownViewer
+                content={displayedMarkdown}
+                isStreaming={isProcessing && selectedRole === currentNode}
+                agentName={displayedTitle}
+              />
+            )}
           </div>
 
         </div>

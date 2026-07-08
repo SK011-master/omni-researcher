@@ -46,6 +46,8 @@ export const useAgentStream = () => {
   const [activeQuery, setActiveQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isWebSearchActive, setIsWebSearchActive] = useState(false);
+  const [dbStatus, setDbStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [savedSessions, setSavedSessions] = useState<any[]>([]);
 
   // Sync isWebSearchActive with researcher status
   useEffect(() => {
@@ -55,6 +57,32 @@ export const useAgentStream = () => {
       setIsWebSearchActive(false);
     }
   }, [nodes.researcher.status]);
+
+  const fetchSavedSessions = useCallback(async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/sessions'); 
+        if (response.ok) {
+          const data = await response.json();
+          setSavedSessions(data);
+        } else {
+          console.error('Failed to fetch saved sessions:', response.statusText);
+        }
+      } catch (err) {
+        console.error('Error fetching saved sessions:', err);
+      }
+  }, []);
+
+  // Fetch saved sessions on mount
+  useEffect(() => {
+    fetchSavedSessions();
+  }, [fetchSavedSessions]);
+
+  // Handle connection/operational error
+  useEffect(() => {
+    if (error) {
+      setDbStatus('error');
+    }
+  }, [error]);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -98,13 +126,17 @@ export const useAgentStream = () => {
     wsRef.current.onmessage = async (event) => {
       const response = JSON.parse(event.data);
 
-      if (response.type === 'update') {
-
-        // Read the custom search state sent from your FastAPI loop
-        if (response.data && typeof response.data.is_searching !== 'undefined') {
-          setIsWebSearchActive(response.data.is_searching);
+      // --- ADD THIS BLOCK TO CATCH DATABASE EVENTS FROM PYTHON ---
+      if (response.type === 'db_status') {
+        setDbStatus(response.status);
+        if (response.status === 'saved') {
+          fetchSavedSessions(); // Silently reload the history tab!
         }
+        return; // Exit early since this isn't a node update
+      }
+      // -----------------------------------------------------------
 
+      if (response.type === 'update') {
         const agentName = response.agent.replace('_node', '') as AgentRole;
         
         if (agentName === 'critic') {
@@ -188,6 +220,9 @@ export const useAgentStream = () => {
     activeQuery,
     error,
     isWebSearchActive,
+    dbStatus,
+    savedSessions,
+    fetchSavedSessions,
     startResearch,
     cancelResearch,
     resetSession,
