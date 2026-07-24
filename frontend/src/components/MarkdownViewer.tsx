@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Copy, Check, Download, CornerRightDown, Terminal } from "lucide-react";
+import { KPIWidget, ChartWidget } from "./ReportWidgets";
 
 interface MarkdownViewerProps {
   content: string;
@@ -112,8 +113,44 @@ export default function MarkdownViewer({ content, isStreaming, agentName }: Mark
                 blockquote: ({ ...props }) => (
                   <blockquote className="border-l-2 border-blue-500 bg-blue-500/5 px-4 py-2 my-4 rounded-r-lg text-zinc-400 italic font-mono text-xs" {...props} />
                 ),
+                img: ({ ...props }) => (
+                  <img
+                    className="rounded-xl border border-zinc-900 max-w-full my-4 shadow-lg object-cover"
+                    referrerPolicy="no-referrer"
+                    {...props}
+                  />
+                ),
                 code: ({ inline, className, children, ...props }: any) => {
-                  const match = /language-(\w+)/.exec(className || "");
+                  const match = /language-([\w-]+)/.exec(className || "");
+                  const isKpi = match && match[1] === "kpi-metrics";
+                  const isChart = match && match[1] === "line-chart";
+
+                  if (!inline && (isKpi || isChart)) {
+                    try {
+                      const jsonText = String(children).trim();
+                      const parsedData = JSON.parse(jsonText);
+                      if (isKpi) {
+                        return <KPIWidget data={parsedData} />;
+                      }
+                      if (isChart) {
+                        return <ChartWidget data={parsedData} />;
+                      }
+                    } catch (err) {
+                      console.error("Failed to parse widget JSON data:", err);
+                      // Fallback to error message styled code block
+                      return (
+                        <div className="relative my-4 rounded-xl border border-red-500/20 bg-zinc-950 overflow-hidden font-mono text-xs">
+                          <div className="flex items-center justify-between px-4 py-1.5 border-b border-zinc-900 bg-red-500/10 text-[10px] text-red-400 uppercase tracking-wider font-semibold">
+                            Error Parsing Widget Data ({match ? match[1] : "JSON"})
+                          </div>
+                          <pre className="p-4 overflow-x-auto text-zinc-500">
+                            <code>{children}</code>
+                          </pre>
+                        </div>
+                      );
+                    }
+                  }
+
                   return !inline ? (
                     <div className="relative my-4 rounded-xl border border-zinc-900 bg-zinc-950 overflow-hidden font-mono text-xs">
                       {match && (

@@ -85,12 +85,48 @@ def critic_node(state: AgentState):
     }
 
 def synthesizer_node(state: AgentState):
-    print("✍️ [SYNTHESIZER] Formatting final report...")
+    print("✍️ [SYNTHESIZER] Formatting final report with native widgets...")
     all_data = "\n\n".join(state.get("research_data", []))
     task = state.get("task", "")
     
-    prompt = f"Task: {task}\nRaw Data:\n{all_data}\n\nFormat this into a highly professional, well-structured Markdown report."
+    prompt = f"""
+    Task: {task}
+    Raw Data: {all_data}
     
+    You are the system report synthesizer. Your job is to format the gathered research into a comprehensive, publication-ready Markdown report.
+    
+    CRITICAL STRUCTURE REQUIREMENT 1 - VISUAL INFOGRAPHICS:
+    You must extract core quantitative findings and deliver them via functional structural widgets. Use the exact code-fence tags described below. Do not put any extra explanations or characters inside these code fences besides valid JSON.
+    
+    - To display high-level stats, use the `kpi-metrics` tag with a JSON array:
+    ```kpi-metrics
+    [
+      {{"label": "REVENUE GROWTH", "value": "+45%", "subtext": "Q1 Year-over-Year acceleration"}}
+    ]
+    ```
+    
+    - To display trend metrics or comparisons over category data, use the `line-chart` tag with this exact object structural shape:
+    ```line-chart
+    {{
+      "xAxis": "Timeline Metric (e.g. Quarter, Year, Version)",
+      "yAxis": "Quantity Metric (e.g. Efficiency %, Latency ms)",
+      "data": [
+        {{"name": "Q1", "value": 120}},
+        {{"name": "Q2", "value": 180}}
+      ]
+    }}
+    ```
+
+    CRITICAL STRUCTURE REQUIREMENT 2 - CONTEXTUAL IMAGES:
+    You must intelligently include exactly two cinematic, highly relevant image break assets inside the report flow. 
+    To create an image, construct a highly descriptive visual graphic generation prompt (e.g., "A modern solid state battery cell glowing under laboratory equipment, dark background, 8k resolution, cinematic lighting").
+    Embed it into the text exactly using this Markdown template (replace all spaces in your prompt string with hyphens `-`):
+    ![Alt Text Description](https://image.pollinations.ai/prompt/YOUR-DESCRIPTIVE-PROMPT-HERE-WITH-HYPHENS)
+    
+    Ensure the remaining report narrative utilizes clean formatting headers (##, ###) and clear structural bullet lists.
+    """
+    
+    # Assuming you are using the Google GenAI SDK client architecture
     response = client.models.generate_content(model=MODEL_ID, contents=prompt)
     
     return {"final_report": response.text, "current_agent": "synthesizer"}

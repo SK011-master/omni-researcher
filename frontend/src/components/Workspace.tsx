@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Move, Layers, RefreshCw, Compass, Clock, CheckSquare, ZoomIn, ZoomOut } from "lucide-react";
+import { Move, Layers, RefreshCw, Compass, Clock, CheckSquare, ZoomIn, ZoomOut, Maximize2, Minimize2 } from "lucide-react";
 import { AgentRole, AgentNodeState, ConnectionStatus } from "../types";
 import AgentNode from "./AgentNode";
 import ToolNode from "./ToolNode";
@@ -43,6 +43,7 @@ export default function Workspace({
   // Toggle between automatic streaming tracking or manual inspection
   const [selectedRole, setSelectedRole] = useState<AgentRole | "final" | "history">("final");
   const [selectedHistorySession, setSelectedHistorySession] = useState<any | null>(null);
+  const [isMaximized, setIsMaximized] = useState(false);
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
   const [isResetting, setIsResetting] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -342,7 +343,7 @@ export default function Workspace({
           ref={containerRef} 
           onPointerDown={startPan}
           className={`flex-1 relative overflow-hidden bg-zinc-950 select-none cursor-grab active:cursor-grabbing ${
-            activeTab === "graph" ? "block" : "hidden lg:block"
+            isMaximized ? "hidden" : (activeTab === "graph" ? "block" : "hidden lg:block")
           }`}
         >
           
@@ -567,56 +568,73 @@ export default function Workspace({
 
         {/* Right Side: Sophisticated Markdown Preview Drawer */}
         <div 
-          className={`w-full lg:w-[480px] xl:w-[560px] border-t lg:border-t-0 lg:border-l border-zinc-900 bg-zinc-950 flex flex-col overflow-hidden z-20 ${
-            activeTab === "output" ? "block" : "hidden lg:block"
+          className={`w-full ${isMaximized ? "lg:w-full" : "lg:w-[480px] xl:w-[560px]"} border-t lg:border-t-0 lg:border-l border-zinc-900 bg-zinc-950 flex flex-col overflow-hidden z-20 ${
+            isMaximized ? "block" : (activeTab === "output" ? "block" : "hidden lg:block")
           }`}
         >
           
           {/* Drawer tabs for preview selection */}
-          <div className="flex border-b border-zinc-900 px-4 py-2 bg-zinc-950 shrink-0 gap-1 overflow-x-auto select-none no-scrollbar">
-            <button
-              onClick={() => setSelectedRole("final")}
-              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[90px] ${
-                selectedRole === "final"
-                  ? "bg-zinc-900 text-blue-400 border border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              Synthesis
-            </button>
-            <button
-              onClick={() => setSelectedRole("researcher")}
-              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[90px] ${
-                selectedRole === "researcher"
-                  ? "bg-zinc-900 text-blue-400 border border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              Researcher
-            </button>
-            <button
-              onClick={() => setSelectedRole("critic")}
-              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[90px] ${
-                selectedRole === "critic"
-                  ? "bg-zinc-900 text-blue-400 border border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              Critique
-            </button>
-            <button
-              onClick={() => {
-                setSelectedRole("history");
-                setSelectedHistorySession(null);
-              }}
-              className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[110px] ${
-                selectedRole === "history"
-                  ? "bg-zinc-900 text-blue-400 border border-zinc-800"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              History
-            </button>
+          <div className="flex items-center justify-between border-b border-zinc-900 bg-zinc-950 px-4 py-2 shrink-0 select-none">
+            <div className="flex flex-1 gap-1 overflow-x-auto no-scrollbar py-0.5">
+              <button
+                onClick={() => setSelectedRole("final")}
+                className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[90px] ${
+                  selectedRole === "final"
+                    ? "bg-zinc-900 text-blue-400 border border-zinc-800"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                Synthesis
+              </button>
+              <button
+                onClick={() => setSelectedRole("researcher")}
+                className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[90px] ${
+                  selectedRole === "researcher"
+                    ? "bg-zinc-900 text-blue-400 border border-zinc-800"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                Researcher
+              </button>
+              <button
+                onClick={() => setSelectedRole("critic")}
+                className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[90px] ${
+                  selectedRole === "critic"
+                    ? "bg-zinc-900 text-blue-400 border border-zinc-800"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                Critique
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedRole("history");
+                  setSelectedHistorySession(null);
+                }}
+                className={`flex-1 text-center py-2 px-1.5 rounded-lg font-mono text-[10px] font-bold tracking-wider uppercase transition min-w-[110px] ${
+                  selectedRole === "history"
+                    ? "bg-zinc-900 text-blue-400 border border-zinc-800"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                History
+              </button>
+            </div>
+
+            {/* Maximize/Minimize toggle button */}
+            <div className="flex items-center pl-3 ml-2 border-l border-zinc-900 shrink-0">
+              <button
+                onClick={() => setIsMaximized(!isMaximized)}
+                className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition"
+                title={isMaximized ? "Minimize Panel" : "Maximize Panel"}
+              >
+                {isMaximized ? (
+                  <Minimize2 className="h-3.5 w-3.5" />
+                ) : (
+                  <Maximize2 className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Markdown / History Content Block */}
