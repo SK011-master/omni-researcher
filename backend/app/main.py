@@ -1,11 +1,11 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import json
 from app.agents.graph import agent_app
 
 # --- ADD DATABASE IMPORTS ---
-from app.database import engine, Base, SessionLocal
+from app.database import engine, Base, SessionLocal, get_db
 from app.models import ResearchSession
 from sqlalchemy.orm import Session
 
@@ -26,15 +26,17 @@ app.add_middleware(
 
 # --- REST ENDPOINT: Fetch History for the Frontend Drawer ---
 @app.get("/api/sessions")
-def get_sessions(client_id: str): # Require client_id in the URL query
-    db = SessionLocal()
-    try:
-        sessions = db.query(ResearchSession).filter(
-            ResearchSession.client_id == client_id
-        ).order_by(ResearchSession.created_at.desc()).all()
-        return sessions
-    finally:
-        db.close()
+def get_sessions(client_id: str | None = None, db: Session = Depends(get_db)):
+    # If a client_id is provided, try to fetch their specific sessions first
+    sessions = []
+    if client_id:
+        sessions = db.query(ResearchSession).filter(ResearchSession.client_id == client_id).order_by(ResearchSession.created_at.desc()).all()
+    
+    # Fallback: If no sessions found for this specific anonymous client, 
+    if not sessions:
+        sessions = db.query(ResearchSession).order_by(ResearchSession.created_at.desc()).limit(10).all()
+        
+    return sessions
 
 @app.get("/")
 def read_root():
