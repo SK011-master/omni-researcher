@@ -652,7 +652,7 @@ export default function Workspace({
                         <span>← Back to Sessions</span>
                       </button>
                     </div>
-                    <div className="flex-1 overflow-auto pr-1">
+                    <div className="flex-1 overflow-hidden pr-1 pb-2"> 
                       <MarkdownViewer
                         content={selectedHistorySession.final_report}
                         isStreaming={false}

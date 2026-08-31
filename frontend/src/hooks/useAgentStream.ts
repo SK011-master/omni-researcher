@@ -100,6 +100,8 @@ export const useAgentStream = () => {
 
     ws.onopen = () => {
       setConnectionStatus('connected');
+      setError(null); 
+      setDbStatus(prev => prev === 'error' ? 'idle' : prev);
     };
 
     ws.onclose = () => {
@@ -225,6 +227,8 @@ export const useAgentStream = () => {
 
       ws.onopen = () => {
         setConnectionStatus('connected');
+        setError(null); 
+        setDbStatus(prev => prev === 'error' ? 'idle' : prev);
         ws.send(payload);
       };
 
