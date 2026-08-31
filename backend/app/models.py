@@ -8,6 +8,7 @@ class ResearchSession(Base):
 
     # The unique ID for each research run
     id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(String, index=True, nullable=False)
     
     # The user's original prompt
     task = Column(String, index=True, nullable=False)

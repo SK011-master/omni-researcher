@@ -9,8 +9,6 @@ from google.genai import types
 # Load the API key from your .env file
 load_dotenv()
 
-# Initialize the new Google GenAI Client
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL_ID = "gemini-2.5-flash" # Fast and cost-effective for multi-agent loops
 
 # ==========================================
@@ -21,6 +19,13 @@ def researcher_node(state: AgentState):
     print("🧠 [RESEARCHER] Gathering live data...")
     task = state.get("task", "")
     feedback = state.get("critic_feedback", "")
+
+    # 1. Initialize the client dynamically using the user's BYOK
+    user_api_key = state.get("api_key")
+    if not user_api_key:
+        raise ValueError("Missing Gemini API Key for this session.")
+
+    client = genai.Client(api_key=user_api_key)
     
     # 1. First, instantly notify the frontend that web search is spinning up
     # By setting current_agent to "researcher" and is_searching to True, React lights up both nodes!
@@ -61,6 +66,10 @@ def critic_node(state: AgentState):
     data = state.get("research_data", [])[-1] if state.get("research_data") else ""
     task = state.get("task", "")
     current_count = state.get("revision_count", 0)
+
+    # Initialize client dynamically using the user's BYOK key
+    user_api_key = state.get("api_key")
+    client = genai.Client(api_key=user_api_key)
     
     prompt = f"""
     You are a ruthless, highly-analytical Peer Reviewer and QA Manager. 
@@ -88,6 +97,10 @@ def synthesizer_node(state: AgentState):
     print("✍️ [SYNTHESIZER] Formatting final report with native widgets...")
     all_data = "\n\n".join(state.get("research_data", []))
     task = state.get("task", "")
+
+    # Initialize client dynamically using the user's BYOK key
+    user_api_key = state.get("api_key")
+    client = genai.Client(api_key=user_api_key)
     
     prompt = f"""
     Task: {task}

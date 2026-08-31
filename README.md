@@ -11,7 +11,7 @@ An advanced, full-stack AI research platform powered by a multi-agent LangGraph 
 *   **🎨 Dynamic Native UI Rendering:** Overrides standard Markdown to dynamically render raw JSON data into highly interactive, Apple-style UI widgets (KPI grids and Area Charts) using Recharts and Framer Motion.
 *   **🖼️ Context-Aware Imagery:** Intelligently generates and embeds structural text-to-image prompts via the Pollinations API to break up dense technical reports with cinematic visuals.
 *   **💾 Persistent Memory:** Fully integrated with Supabase PostgreSQL via SQLAlchemy, ensuring all research sessions and agent reasoning paths are securely logged and retrievable.
-*   **⚡ Hybrid Edge-Cloud Architecture:** Configured to support dynamic switching between heavy-duty cloud inference (Gemini 2.5) and highly efficient local edge inference (Gemma 4B Q4_K_M GGUF) for cost-effective operations.
+*   **⚡ Cloud-Native Inference:** Optimized for high-speed, cost-effective agent reasoning using Google's Gemini 2.5 Flash via the GenAI SDK, ensuring rapid websocket streaming to the client.
 
 ---
 

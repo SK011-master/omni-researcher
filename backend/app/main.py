@@ -26,11 +26,12 @@ app.add_middleware(
 
 # --- REST ENDPOINT: Fetch History for the Frontend Drawer ---
 @app.get("/api/sessions")
-def get_sessions():
+def get_sessions(client_id: str): # Require client_id in the URL query
     db = SessionLocal()
     try:
-        # Fetch all sessions ordered by newest first
-        sessions = db.query(ResearchSession).order_by(ResearchSession.created_at.desc()).all()
+        sessions = db.query(ResearchSession).filter(
+            ResearchSession.client_id == client_id
+        ).order_by(ResearchSession.created_at.desc()).all()
         return sessions
     finally:
         db.close()
@@ -48,7 +49,11 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             payload = json.loads(data)
+
+            # Extract the new variables from the frontend payload
             task = payload.get("task", "")
+            user_api_key = payload.get("api_key", "")
+            client_id = payload.get("client_id", "")
 
             # 1. Notify frontend that the DB pipeline is ready
             await websocket.send_json({
@@ -59,6 +64,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             initial_state = {
                 "task": task,
+                "api_key": user_api_key,
                 "research_data": [],
                 "critic_feedback": "",
                 "revision_count": 0,
@@ -105,6 +111,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             try:
                 new_session = ResearchSession(
+                    client_id=client_id,
                     task=task,
                     research_data="|||".join(final_state.get("research_data", [])),
                     final_report=final_state.get("final_report", "")

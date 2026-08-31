@@ -3,6 +3,7 @@ from typing import TypedDict, List
 class AgentState(TypedDict):
     # The original objective or question provided by the user
     task: str
+    api_key: str
     
     # Collected raw research data
     research_data: List[str]
