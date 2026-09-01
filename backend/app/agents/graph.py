@@ -9,8 +9,6 @@ from google.genai import types
 # Load the API key from your .env file
 load_dotenv()
 
-MODEL_ID = "gemini-2.5-flash" # Fast and cost-effective for multi-agent loops
-
 # ==========================================
 # 1. DEFINE THE AGENTS (NODES)
 # ==========================================
@@ -19,6 +17,7 @@ def researcher_node(state: AgentState):
     print("🧠 [RESEARCHER] Gathering live data...")
     task = state.get("task", "")
     feedback = state.get("critic_feedback", "")
+    current_model = state.get("model_id", "gemini-3.6-flash")
 
     # 1. Initialize the client dynamically using the user's BYOK
     user_api_key = state.get("api_key")
@@ -44,7 +43,7 @@ def researcher_node(state: AgentState):
         
     # 2. Run the tool-enabled execution loop
     response = client.models.generate_content(
-        model=MODEL_ID, 
+        model=current_model, 
         contents=prompt,
         config=types.GenerateContentConfig(
             tools=[{"google_search": {}}],
@@ -66,6 +65,7 @@ def critic_node(state: AgentState):
     data = state.get("research_data", [])[-1] if state.get("research_data") else ""
     task = state.get("task", "")
     current_count = state.get("revision_count", 0)
+    current_model = state.get("model_id", "gemini-3.6-flash")
 
     # Initialize client dynamically using the user's BYOK key
     user_api_key = state.get("api_key")
@@ -85,7 +85,7 @@ def critic_node(state: AgentState):
     If NO, respond starting with the word REJECT followed by a 1-sentence critique on what is missing (e.g., "REJECT: The research lacks specific numerical statistics.").
     """
     
-    response = client.models.generate_content(model=MODEL_ID, contents=prompt)
+    response = client.models.generate_content(model=current_model, contents=prompt)
     
     return {
         "critic_feedback": response.text.strip(), 
@@ -97,6 +97,7 @@ def synthesizer_node(state: AgentState):
     print("✍️ [SYNTHESIZER] Formatting final report with native widgets...")
     all_data = "\n\n".join(state.get("research_data", []))
     task = state.get("task", "")
+    current_model = state.get("model_id", "gemini-3.6-flash")
 
     # Initialize client dynamically using the user's BYOK key
     user_api_key = state.get("api_key")
@@ -140,7 +141,7 @@ def synthesizer_node(state: AgentState):
     """
     
     # Assuming you are using the Google GenAI SDK client architecture
-    response = client.models.generate_content(model=MODEL_ID, contents=prompt)
+    response = client.models.generate_content(model=current_model, contents=prompt)
     
     return {"final_report": response.text, "current_agent": "synthesizer"}
 

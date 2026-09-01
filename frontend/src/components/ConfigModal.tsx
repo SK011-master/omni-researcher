@@ -3,6 +3,7 @@ import { Key, ShieldCheck } from "lucide-react";
 
 export default function ConfigModal({ onComplete }: { onComplete: () => void }) {
   const [apiKey, setApiKey] = useState("");
+  const [selectedModel, setSelectedModel] = useState("gemini-3.6-flash");
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -24,8 +25,10 @@ export default function ConfigModal({ onComplete }: { onComplete: () => void }) 
   }, [onComplete]);
 
   const handleSave = () => {
-    if (apiKey.trim().length > 20) { // Basic validation
+    if (apiKey.trim().length > 20) { 
       localStorage.setItem("omni_gemini_key", apiKey.trim());
+      // Add this line to save the model choice:
+      localStorage.setItem("omni_gemini_model", selectedModel); 
       setIsVisible(false);
       onComplete();
     }
@@ -59,6 +62,18 @@ export default function ConfigModal({ onComplete }: { onComplete: () => void }) 
             placeholder="AIzaSy..."
             className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 font-mono text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
           />
+
+          {/* YOUR NEW MODEL DROPDOWN */}
+          <div className="pt-2">
+            <select 
+              value={selectedModel} 
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 font-mono text-sm text-zinc-100 focus:border-blue-500 focus:outline-none cursor-pointer"
+            >
+              <option value="gemini-3.6-flash">Gemini 3.6 Flash (Fast & Efficient)</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep Reasoning)</option>
+            </select>
+          </div>
           
           <button
             onClick={handleSave}

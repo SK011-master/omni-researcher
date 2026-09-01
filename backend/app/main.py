@@ -56,6 +56,7 @@ async def websocket_endpoint(websocket: WebSocket):
             task = payload.get("task", "")
             user_api_key = payload.get("api_key", "")
             client_id = payload.get("client_id", "")
+            model_id = data.get("model_id", "gemini-3.6-flash")
 
             # 1. Notify frontend that the DB pipeline is ready
             await websocket.send_json({
@@ -67,6 +68,7 @@ async def websocket_endpoint(websocket: WebSocket):
             initial_state = {
                 "task": task,
                 "api_key": user_api_key,
+                "model_id": model_id,
                 "research_data": [],
                 "critic_feedback": "",
                 "revision_count": 0,
